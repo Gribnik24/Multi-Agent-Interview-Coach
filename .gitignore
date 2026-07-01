@@ -1,0 +1,5 @@
+materials/
+.env
+.venv/
+__pycache__/
+logs/
