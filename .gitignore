@@ -1,4 +1,4 @@
-materials/
+.materials/
 .env
 .venv/
 __pycache__/
