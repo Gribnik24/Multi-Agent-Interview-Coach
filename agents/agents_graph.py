@@ -2,15 +2,16 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
 from agents.agents_state import InterviewState, memory
-from agents.observer import observer_node
-from agents.interviewer import interviewer_node
-from agents.summarizer import summarizer_node
+from agents.observer import make_observer_node
+from agents.interviewer import make_interviewer_node
+from agents.summarizer import make_summarizer_node
 
 from tools.observer_tools import observer_tools_list
 from tools.interviewer_tools import interviewer_tools_list
 from tools.summarizer_tools import summarizer_tools_list
 
 from config.settings import settings
+from config.system_prompts import OBSERVER_SYSTEM_PROMPT, INTERVIEWER_SYSTEM_PROMPT, SUMMARIZER_SYSTEM_PROMPT
 
 def observer_paths(state: InterviewState) -> str:
     """
@@ -44,8 +45,8 @@ def interviewer_paths(state: InterviewState) -> str:
     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
         return 'interviewer_tools'
     
-    # Завершение работы графа
-    return END
+    # Направление на observer
+    return 'observer'
 
 def summarizer_paths(state: InterviewState) -> str:
     """
@@ -67,9 +68,9 @@ def workflow_builder():
     workflow = StateGraph(InterviewState)
     
     # Ячейки агентов
-    workflow.add_node('observer', observer_node)
-    workflow.add_node('interviewer', interviewer_node)
-    workflow.add_node('summarizer', summarizer_node)
+    workflow.add_node('observer', make_observer_node(OBSERVER_SYSTEM_PROMPT, observer_tools_list))
+    workflow.add_node('interviewer', make_interviewer_node(INTERVIEWER_SYSTEM_PROMPT, interviewer_tools_list))
+    workflow.add_node('summarizer', make_summarizer_node(SUMMARIZER_SYSTEM_PROMPT, summarizer_tools_list))
     
     # Ячейки инструментов
     workflow.add_node('observer_tools', ToolNode(observer_tools_list))
