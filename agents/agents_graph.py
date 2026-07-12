@@ -16,7 +16,7 @@ def observer_paths(state: InterviewState) -> str:
     """
     Варианты действий агента-оценщика
     """
-    last_message = state["messages"][-1]
+    last_message = state['messages'][-1]
     
     # Вызов инструмента при необходимости
     need_tool_call = hasattr(last_message, 'tool_calls') and last_message.tool_calls
@@ -25,9 +25,9 @@ def observer_paths(state: InterviewState) -> str:
     
     # Вызов агента-фидбэкера
     # Если поступила команда /stop
-    stop_command_flag = state.get("interview_status") == "finished"
+    stop_command_flag = state.get('interview_status') == 'finished'
     # Если достигнуто максимальное количество основных вопросов
-    max_questions_flag = state.get("current_question_count", 0) >= settings.QUESTIONS_COUNT
+    max_questions_flag = state.get('current_question_count', 0) >= settings.QUESTIONS_COUNT
     if stop_command_flag or max_questions_flag:
         return 'summarizer'
     
@@ -38,11 +38,11 @@ def interviewer_paths(state: InterviewState) -> str:
     """
     Варианты действий агента-интервьюера
     """
-    last_message = state["messages"][-1]
+    last_message = state['messages'][-1]
     
     # Вызов инструмента при необходимости
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "interviewer_tools"
+    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+        return 'interviewer_tools'
     
     # Завершение работы графа
     return END
@@ -51,11 +51,11 @@ def summarizer_paths(state: InterviewState) -> str:
     """
     Варианты действий агента-фидбэкера
     """
-    last_message = state["messages"][-1]
+    last_message = state['messages'][-1]
     
     # Вызов инструмента при необходимости
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "summarizer_tools"
+    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+        return 'summarizer_tools'
     
     # Завершение работы графа
     return END
