@@ -217,6 +217,16 @@ def make_observer_node(system_prompt: str, tools_list: list):
         
         messages = [SystemMessage(content=extended_system_prompt)] + state['messages']
         
+        # Обработка команды /stop - формируем финальный отчёт
+        last_msg = state['messages'][-1] if state.get('messages') else None
+        if (
+            isinstance(last_msg, HumanMessage)
+            and isinstance(last_msg.content, str)
+            and last_msg.content.strip().lower() == '/stop'
+        ):
+            tao_logger.info('[Observer] Получена команда /stop, формирование финального отчёта')
+            return _handle_report_generation(state, messages, llm_with_tools)
+        
         # Формирование финального отчета по кандидату
         if state.get('interview_status') == 'finished':
             return _handle_report_generation(state, messages, llm_with_tools)

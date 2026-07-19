@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage
 
 from agents import tao_logger
 from agents.agents_state import InterviewState, memory
@@ -11,6 +11,47 @@ from tools.observer_tools import observer_tools_list
 from tools.interviewer_tools import interviewer_tools_list
 
 from config.system_prompts import OBSERVER_SYSTEM_PROMPT, INTERVIEWER_SYSTEM_PROMPT
+
+
+def start_router(state: InterviewState) -> str:
+    """
+    Маршрутизация из START.
+    Решает, кто должен обработать очередное сообщение пользователя:
+    - /stop -> observer (формирование отчёта)
+    - Профиль неполный -> interviewer (сбор данных)
+    - Профиль полный + ответ кандидата -> observer (оценка ответа)
+    - Иначе -> interviewer
+    """
+    messages = state.get('messages', [])
+    last_message = messages[-1] if messages else None
+
+    # Обработка команды /stop - завершаем интервью и идём к Observer за отчётом
+    if (
+        isinstance(last_message, HumanMessage)
+        and isinstance(last_message.content, str)
+        and last_message.content.strip().lower() == '/stop'
+    ):
+        tao_logger.info('[Routing] START -> observer (команда /stop, формирование отчёта)')
+        return 'observer'
+
+    # Если профиль кандидата ещё не собран - Interviewer продолжает сбор данных
+    profile_complete = (
+        state.get('candidate_name')
+        and state.get('candidate_position')
+        and state.get('candidate_grade')
+    )
+    if not profile_complete:
+        tao_logger.info('[Routing] START -> interviewer (профиль неполный, сбор данных)')
+        return 'interviewer'
+
+    # Профиль полон и пришло сообщение от пользователя - Observer оценивает ответ
+    if isinstance(last_message, HumanMessage):
+        tao_logger.info('[Routing] START -> observer (ответ кандидата, оценка)')
+        return 'observer'
+
+    # По умолчанию - Interviewer
+    tao_logger.info('[Routing] START -> interviewer (по умолчанию)')
+    return 'interviewer'
 
 
 def observer_paths(state: InterviewState) -> str:
@@ -38,9 +79,7 @@ def interviewer_paths(state: InterviewState) -> str:
     """
     Маршрутизация Interviewer'а:
     - Вызов инструмента -> interviewer_tools
-    - Есть инструкция от Observer'а -> observer
-    - Ответ пользователя (HumanMessage) -> observer (оценка ответа)
-    - Конец
+    - Иначе -> END (вопрос/уточнение сформированы для пользователя)
     """
     last_message = state['messages'][-1]
     
@@ -49,22 +88,7 @@ def interviewer_paths(state: InterviewState) -> str:
         tao_logger.info('[Routing] Interviewer -> interviewer_tools (вызов инструмента)')
         return 'interviewer_tools'
     
-    # Если есть инструкция от Observer'а (например, "оцени профиль" или "задай следующий вопрос")
-    if state.get('next_interviewer_instruction'):
-        tao_logger.info('[Routing] Interviewer -> observer (есть инструкция от Observer)')
-        return 'observer'
-    
-    # Если последнее сообщение - ответ пользователя, передаём ответ кандидата Observer'у для оценки.
-    if isinstance(last_message, HumanMessage):
-        tao_logger.info('[Routing] Interviewer -> observer (ответ пользователя, передача на оценку)')
-        return 'observer'
-
-    # Если последнее сообщение - работа инструмента, передаём результат инструмента.
-    if isinstance(last_message, ToolMessage):
-        tao_logger.info('[Routing] Interviewer -> observer (результат инструмента, передача на оценку)')
-        return 'observer'
-    
-    # По умолчанию конец
+    # Вопрос/уточнение сформированы - отдаём пользователю
     tao_logger.info('[Routing] Interviewer -> END (завершение)')
     return END
 
@@ -86,8 +110,7 @@ def workflow_builder():
     workflow.add_node('interviewer_tools', ToolNode(interviewer_tools_list))
     
     # Связи графа
-    workflow.add_edge(START, 'interviewer')
-    
+    workflow.add_conditional_edges(START, start_router)
     workflow.add_conditional_edges('observer', observer_paths)
     workflow.add_conditional_edges('interviewer', interviewer_paths)
     workflow.add_edge('observer_tools', 'observer')
