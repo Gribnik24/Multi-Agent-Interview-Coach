@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from langchain_core.messages import HumanMessage
 
-from telegram import logger
+from telegram import bot_logger
 from agents import run_and_trace
 
 commands_router = Router()
@@ -14,7 +14,7 @@ async def start(message: Message, bot: Bot):
     """
     Выводимое сообщение бота при команде /start 
     """
-    logger.info('Запуск команды /start')
+    bot_logger.info('Запуск команды /start')
     try:
         loading_message = await message.answer('Думаю и размышляю...')
         
@@ -40,10 +40,10 @@ async def start(message: Message, bot: Bot):
                                     message_id=loading_message.message_id,
                                     text=bot_response)
         
-        logger.info('Успешное выполнение команды /start')
+        bot_logger.info('Успешное выполнение команды /start')
         
     except Exception as e:
-        logger.error(f'Ошибка выполнение команды /start: {e}')
+        bot_logger.error(f'Ошибка выполнение команды /start: {e}')
     
     
 @commands_router.message(Command('stop'))
@@ -51,7 +51,7 @@ async def stop(message: Message, bot: Bot):
     """
     Выводимое сообщение и поведение бота при команде /stop 
     """
-    logger.info('Запуск команды /stop')
+    bot_logger.info('Запуск команды /stop')
     loading_message = await message.answer('Готовлю сводку и финальный ответ по интервью...')
     
     try:
@@ -63,10 +63,10 @@ async def stop(message: Message, bot: Bot):
         await bot.edit_message_text(chat_id=message.chat.id,
                                     message_id=loading_message.message_id,
                                     text=answer)
-        logger.info('Успешное выполнение команды /stop')
+        bot_logger.info('Успешное выполнение команды /stop')
         
     except Exception as e:
-        logger.error(f'Ошибка выполнение команды /stop: {e}')
+        bot_logger.error(f'Ошибка выполнение команды /stop: {e}')
         answer = 'Произошла ошибка. Попробуйте позже'
         await bot.edit_message_text(chat_id=message.chat.id,
                                     message_id=loading_message.message_id,

@@ -2,10 +2,10 @@ import logging
 import os
 
 # Логгер для работы телеграм бота
-logger = logging.getLogger('bot_logs')
-logger.setLevel(logging.INFO)
-logger.handlers.clear()
-logger.propagate = False
+bot_logger = logging.getLogger('bot_logs')
+bot_logger.setLevel(logging.INFO)
+bot_logger.handlers.clear()
+bot_logger.propagate = False
 
 # Создание папки logs/ в корне при ее отсутствии
 current_dir = os.path.dirname(__file__)
@@ -20,6 +20,6 @@ handler = logging.FileHandler(
     encoding='utf-8'
 )
 handler.setFormatter(
-    logging.Formatter('[BOT LOGS]: %(levelname)s | %(message)s')
+    logging.Formatter('%(levelname)s | %(message)s')
 )
-logger.addHandler(handler)
+bot_logger.addHandler(handler)
