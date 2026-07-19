@@ -1,91 +1,100 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
+from langchain_core.messages import HumanMessage, ToolMessage
 
+from agents import tao_logger
 from agents.agents_state import InterviewState, memory
 from agents.observer import make_observer_node
 from agents.interviewer import make_interviewer_node
-from agents.summarizer import make_summarizer_node
 
 from tools.observer_tools import observer_tools_list
 from tools.interviewer_tools import interviewer_tools_list
-from tools.summarizer_tools import summarizer_tools_list
 
-from config.settings import settings
-from config.system_prompts import OBSERVER_SYSTEM_PROMPT, INTERVIEWER_SYSTEM_PROMPT, SUMMARIZER_SYSTEM_PROMPT
+from config.system_prompts import OBSERVER_SYSTEM_PROMPT, INTERVIEWER_SYSTEM_PROMPT
+
 
 def observer_paths(state: InterviewState) -> str:
     """
-    Варианты действий агента-оценщика
+    Варианты действий агента-оценщика (Observer)
     """
     last_message = state['messages'][-1]
     
     # Вызов инструмента при необходимости
-    need_tool_call = hasattr(last_message, 'tool_calls') and last_message.tool_calls
-    if need_tool_call:
+    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+        tao_logger.info('[Routing] Observer -> observer_tools (вызов инструмента)')
         return 'observer_tools'
     
-    # Вызов агента-фидбэкера
-    # Если поступила команда /stop
-    stop_command_flag = state.get('interview_status') == 'finished'
-    # Если достигнуто максимальное количество основных вопросов
-    max_questions_flag = state.get('current_question_count', 0) >= settings.QUESTIONS_COUNT
-    if stop_command_flag or max_questions_flag:
-        return 'summarizer'
+    # Если интервью завершено
+    if state.get('interview_status') == 'finished':
+        tao_logger.info('[Routing] Observer -> END (интервью завершено)')
+        return END
     
-    # Иначе передача информации агенту-интервьюеру
+    # Иначе передача команды Interviewer'у
+    tao_logger.info('[Routing] Observer -> interviewer (передача инструкции)')
     return 'interviewer'
+
 
 def interviewer_paths(state: InterviewState) -> str:
     """
-    Варианты действий агента-интервьюера
+    Маршрутизация Interviewer'а:
+    - Вызов инструмента -> interviewer_tools
+    - Есть инструкция от Observer'а -> observer
+    - Ответ пользователя (HumanMessage) -> observer (оценка ответа)
+    - Конец
     """
     last_message = state['messages'][-1]
     
     # Вызов инструмента при необходимости
     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+        tao_logger.info('[Routing] Interviewer -> interviewer_tools (вызов инструмента)')
         return 'interviewer_tools'
     
-    # Направление на observer
-    return 'observer'
+    # Если есть инструкция от Observer'а (например, "оцени профиль" или "задай следующий вопрос")
+    if state.get('next_interviewer_instruction'):
+        tao_logger.info('[Routing] Interviewer -> observer (есть инструкция от Observer)')
+        return 'observer'
+    
+    # Если последнее сообщение - ответ пользователя, передаём ответ кандидата Observer'у для оценки.
+    if isinstance(last_message, HumanMessage):
+        tao_logger.info('[Routing] Interviewer -> observer (ответ пользователя, передача на оценку)')
+        return 'observer'
 
-def summarizer_paths(state: InterviewState) -> str:
-    """
-    Варианты действий агента-фидбэкера
-    """
-    last_message = state['messages'][-1]
+    # Если последнее сообщение - работа инструмента, передаём результат инструмента.
+    if isinstance(last_message, ToolMessage):
+        tao_logger.info('[Routing] Interviewer -> observer (результат инструмента, передача на оценку)')
+        return 'observer'
     
-    # Вызов инструмента при необходимости
-    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-        return 'summarizer_tools'
-    
-    # Завершение работы графа
+    # По умолчанию конец
+    tao_logger.info('[Routing] Interviewer -> END (завершение)')
     return END
+
 
 def workflow_builder():
     """
     Граф мультиагентной системы
     """
+    tao_logger.info('Построение графа мультиагентной системы (workflow_builder)')
+    
     workflow = StateGraph(InterviewState)
     
-    # Ячейки агентов
+    # Узлы агентов
     workflow.add_node('observer', make_observer_node(OBSERVER_SYSTEM_PROMPT, observer_tools_list))
     workflow.add_node('interviewer', make_interviewer_node(INTERVIEWER_SYSTEM_PROMPT, interviewer_tools_list))
-    workflow.add_node('summarizer', make_summarizer_node(SUMMARIZER_SYSTEM_PROMPT, summarizer_tools_list))
     
-    # Ячейки инструментов
+    # Узлы инструментов
     workflow.add_node('observer_tools', ToolNode(observer_tools_list))
     workflow.add_node('interviewer_tools', ToolNode(interviewer_tools_list))
-    workflow.add_node('summarizer_tools', ToolNode(summarizer_tools_list))
     
-    # Связи агентов
-    workflow.add_edge(START, 'observer')
+    # Связи графа
+    workflow.add_edge(START, 'interviewer')
+    
     workflow.add_conditional_edges('observer', observer_paths)
     workflow.add_conditional_edges('interviewer', interviewer_paths)
-    workflow.add_conditional_edges('summarizer', summarizer_paths)
     workflow.add_edge('observer_tools', 'observer')
     workflow.add_edge('interviewer_tools', 'interviewer')
-    workflow.add_edge('summarizer_tools', 'summarizer')
 
+    tao_logger.info('Граф мультиагентной системы успешно построен и скомпилирован')
     return workflow.compile(checkpointer=memory)
+
 
 multi_agent_system = workflow_builder()
