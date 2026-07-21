@@ -4,8 +4,6 @@ import logging
 import os
 import asyncio
 
-from agents.agents_graph import multi_agent_system
-
 # Настройка TAO логгера (логи TAO цикла всей мультиагентной системы)
 tao_logger = logging.getLogger('tao_logs')
 tao_logger.setLevel(logging.INFO)
@@ -29,6 +27,7 @@ _tao_handler.setFormatter(
 )
 tao_logger.addHandler(_tao_handler)
 
+from agents.agents_graph import multi_agent_system
 
 async def collect_tao_logs(result: dict) -> None:
     """
