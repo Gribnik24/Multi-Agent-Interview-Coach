@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 
 from config.settings import settings
-from telegram import logger
+from telegram import bot_logger
 from telegram.handlers.interview import interview_router
 from telegram.handlers.commands import commands_router
 
@@ -13,7 +13,7 @@ async def main():
     dp.include_router(interview_router)
 
     print('Бот активен и готов принимать сообщения')
-    logger.info('Бот активен и готов принимать сообщения')
+    bot_logger.info('Бот активен и готов принимать сообщения')
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
